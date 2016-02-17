@@ -18,21 +18,6 @@
  */
 package org.codehaus.mojo.cassandra;
 
-import org.apache.commons.exec.CommandLine;
-import org.apache.commons.exec.OS;
-import org.apache.maven.artifact.Artifact;
-import org.apache.maven.artifact.ArtifactUtils;
-import org.apache.maven.execution.MavenSession;
-import org.apache.maven.plugin.AbstractMojo;
-import org.apache.maven.project.MavenProject;
-import org.apache.maven.toolchain.Toolchain;
-import org.apache.maven.toolchain.ToolchainManager;
-import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
-import org.codehaus.plexus.util.FileUtils;
-import org.codehaus.plexus.util.IOUtil;
-import org.codehaus.plexus.util.StringUtils;
-import org.codehaus.plexus.util.cli.CommandLineUtils;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -47,6 +32,21 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
+
+import org.apache.commons.exec.CommandLine;
+import org.apache.commons.exec.OS;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.ArtifactUtils;
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.toolchain.Toolchain;
+import org.apache.maven.toolchain.ToolchainManager;
+import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
+import org.codehaus.plexus.util.FileUtils;
+import org.codehaus.plexus.util.IOUtil;
+import org.codehaus.plexus.util.StringUtils;
+import org.codehaus.plexus.util.cli.CommandLineUtils;
 
 /**
  * Base class for all the Cassandra Maven Plugin goals.
@@ -238,7 +238,7 @@ public abstract class AbstractCassandraMojo
      * @parameter
      * @since 1.2.1-2
      */
-    protected Map<String, String> systemPropertyVariables;
+    protected Map<String, String> systemPropertyVariables = new HashMap<String, String>(0);
 
     /**
      * Create a jar with just a manifest containing a Main-Class entry for SurefireBooter and a Class-Path entry for
@@ -626,6 +626,8 @@ public abstract class AbstractCassandraMojo
             commandLine.addArgument( "-Dcom.sun.management.jmxremote.ssl=false" );
             commandLine.addArgument( "-Dcom.sun.management.jmxremote.authenticate=false" );
         }
+
+        systemPropertyVariables.put("jna.nosys", "true");
 
         if ( systemPropertyVariables != null && !systemPropertyVariables.isEmpty() )
         {

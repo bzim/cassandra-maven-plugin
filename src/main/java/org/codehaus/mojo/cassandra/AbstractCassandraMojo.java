@@ -241,6 +241,16 @@ public abstract class AbstractCassandraMojo
     protected Map<String, String> systemPropertyVariables = new HashMap<String, String>(0);
 
     /**
+     * @parameter expression="${cassandra.username}"
+     */
+    protected String username;
+
+    /**
+     * @parameter expression="${cassandra.password}"
+     */
+    protected String password;
+
+    /**
      * Create a jar with just a manifest containing a Main-Class entry for SurefireBooter and a Class-Path entry for
      * all classpath elements. Copied from surefire (ForkConfiguration#createJar())
      *

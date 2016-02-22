@@ -1,9 +1,7 @@
 package org.codehaus.mojo.cassandra;
 
 import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.SchemaDisagreementException;
-import org.apache.thrift.TException;
+
 
 public abstract class ThriftApiOperation {
   
@@ -11,11 +9,15 @@ public abstract class ThriftApiOperation {
   private final String rpcAddress;
   private final int rpcPort;
   private String cqlVersion = "2.0.0";
+    private final String username;
+    private final String password;
 
-  public ThriftApiOperation(String rpcAddress, int rpcPort)
+    public ThriftApiOperation(String rpcAddress, int rpcPort, String username, String password)
   {
       this.rpcAddress = rpcAddress;
       this.rpcPort = rpcPort;
+        this.username = username;
+        this.password = password;
   }
   
   abstract void executeOperation(Cassandra.Client client) throws ThriftApiExecutionException;
@@ -49,6 +51,14 @@ public abstract class ThriftApiOperation {
     public void setCqlVersion( String cqlVersion )
     {
         this.cqlVersion = cqlVersion;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public String getPassword() {
+        return password;
     }
 
 }

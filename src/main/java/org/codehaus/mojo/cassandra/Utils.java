@@ -18,11 +18,30 @@
  */
 package org.codehaus.mojo.cassandra;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.ConnectException;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.thrift.AuthenticationException;
+import org.apache.cassandra.thrift.AuthenticationRequest;
+import org.apache.cassandra.thrift.AuthorizationException;
 import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.InvalidRequestException;
-
-import org.apache.commons.exec.*;
-
+import org.apache.commons.exec.CommandLine;
+import org.apache.commons.exec.DefaultExecuteResultHandler;
+import org.apache.commons.exec.DefaultExecutor;
+import org.apache.commons.exec.ExecuteException;
+import org.apache.commons.exec.ExecuteResultHandler;
+import org.apache.commons.exec.Executor;
+import org.apache.commons.exec.LogOutputStream;
+import org.apache.commons.exec.PumpStreamHandler;
+import org.apache.commons.exec.ShutdownHookProcessDestroyer;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugin.logging.Log;
@@ -36,15 +55,6 @@ import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 import org.codehaus.plexus.util.StringUtils;
 import org.yaml.snakeyaml.Yaml;
-
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.ConnectException;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Utility classes for interacting with Cassandra.
@@ -307,7 +317,20 @@ public final class Utils
                 cassandraClient.set_keyspace(thriftApiOperation.getKeyspace());
             }
             cassandraClient.set_cql_version(thriftApiOperation.getCqlVersion());
+            if (thriftApiOperation.getUsername() != null) {
+                // username configured, we assume to execute a login
+                Map<String, String> credentials = new HashMap<String, String>();
+                credentials.put(IAuthenticator.USERNAME_KEY, thriftApiOperation.getUsername());
+                credentials.put(IAuthenticator.PASSWORD_KEY, thriftApiOperation.getPassword());
+                AuthenticationRequest authRequest = new AuthenticationRequest(credentials);
+                cassandraClient.login(authRequest);
+            }
+
             thriftApiOperation.executeOperation(cassandraClient);
+        } catch (AuthenticationException ae) {
+            throw new MojoExecutionException("Login failed for : " + thriftApiOperation.getUsername() + "", ae);
+        } catch (AuthorizationException ae) {
+            throw new MojoExecutionException("Not Authorized : " + thriftApiOperation.getUsername() + "", ae);
         } catch (ThriftApiExecutionException taee) 
         {
             throw new MojoExecutionException("API Exception calling Apache Cassandra", taee);

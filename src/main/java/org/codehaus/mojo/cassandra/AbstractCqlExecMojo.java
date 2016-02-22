@@ -84,7 +84,7 @@ public abstract class AbstractCqlExecMojo extends AbstractCassandraMojo
 
         private CqlExecOperation(String statements)
         {
-            super(rpcAddress, rpcPort);
+            super(rpcAddress, rpcPort, username, password);
             this.statements = statements.split(";");
             if (StringUtils.isNotBlank(keyspace))
             {

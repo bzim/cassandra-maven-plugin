@@ -1,10 +1,7 @@
 package org.codehaus.mojo.cassandra;
 
-import org.apache.cassandra.thrift.SchemaDisagreementException;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.Cassandra.Client;
 import org.apache.commons.lang.StringUtils;
-import org.apache.thrift.TException;
 
 /**
  * Drop the specified ColumnFamilies or, if no arguments are given, 
@@ -27,13 +24,14 @@ public class DropColumnFamiliesMojo extends AbstractSchemaCassandraMojo {
     @Override
     protected ThriftApiOperation buildOperation() 
     {
-        DropCfOperation dropCfOp = new DropCfOperation(rpcAddress, rpcPort);
+        DropCfOperation dropCfOp = new DropCfOperation(rpcAddress, rpcPort, username, password);
         dropCfOp.setKeyspace(keyspace);        
         return dropCfOp;
     }
 
     private String[] columnFamilyList;
 
+    @Override
     protected void parseArguments() throws IllegalArgumentException
     {
         if (StringUtils.isNotBlank(keyspace)) 
@@ -50,9 +48,9 @@ public class DropColumnFamiliesMojo extends AbstractSchemaCassandraMojo {
     class DropCfOperation extends ThriftApiOperation 
     {
 
-        public DropCfOperation(String rpcAddress, int rpcPort)
+        public DropCfOperation(String rpcAddress, int rpcPort, String username, String password)
         {
-            super(rpcAddress, rpcPort);
+            super(rpcAddress, rpcPort, username, password);
         }
 
         @Override

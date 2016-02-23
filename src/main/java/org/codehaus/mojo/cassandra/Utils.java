@@ -26,7 +26,6 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.thrift.AuthenticationException;
@@ -54,7 +53,11 @@ import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 import org.codehaus.plexus.util.StringUtils;
+import org.slf4j.Logger;
 import org.yaml.snakeyaml.Yaml;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Utility classes for interacting with Cassandra.
@@ -63,6 +66,10 @@ import org.yaml.snakeyaml.Yaml;
  */
 public final class Utils
 {
+    private static final Logger LOG = getLogger(Utils.class);
+    private static final int DEFAULT_MAX_AUTH_FAILURES = 20;
+    private static final int DEFAULT_AUTH_FAILURE_TIMEOUT_SECONDS = 2;
+
     /**
      * Do not instantiate.
      */
@@ -101,7 +108,7 @@ public final class Utils
             return;
         }
         log.info("Waiting for Cassandra to stop...");
-        long maxWaiting = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(30);
+        long maxWaiting = System.currentTimeMillis() + SECONDS.toMillis(30);
         boolean stopped = false;
         while (!stopped && System.currentTimeMillis() < maxWaiting)
         {
@@ -251,7 +258,7 @@ public final class Utils
     static boolean waitUntilStarted(String rpcAddress, int rpcPort, int startWaitSeconds, Log log)
             throws MojoExecutionException
     {
-        long maxWaiting = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(startWaitSeconds);
+        long maxWaiting = System.currentTimeMillis() + SECONDS.toMillis(startWaitSeconds);
         while (startWaitSeconds == 0 || System.currentTimeMillis() < maxWaiting)
         {
             TTransport tr = new TFramedTransport(new TSocket(rpcAddress, rpcPort));
@@ -323,7 +330,28 @@ public final class Utils
                 credentials.put(IAuthenticator.USERNAME_KEY, thriftApiOperation.getUsername());
                 credentials.put(IAuthenticator.PASSWORD_KEY, thriftApiOperation.getPassword());
                 AuthenticationRequest authRequest = new AuthenticationRequest(credentials);
-                cassandraClient.login(authRequest);
+
+                int failCount = 0;
+                final int maxAuthenticationFailures = DEFAULT_MAX_AUTH_FAILURES;
+                final long authenticationFailureTimeoutSeconds = DEFAULT_AUTH_FAILURE_TIMEOUT_SECONDS;
+
+                // retry login, because on new clusters, it will take some time until the "cassandra" super user is available
+                while (true) {
+                    try {
+                        cassandraClient.login(authRequest);
+                        break;
+                    } catch (AuthenticationException e) {
+                        failCount++;
+
+                        if (failCount > maxAuthenticationFailures) {
+                            throw new AuthenticationRetryExceededException("Maximum number of authentication attempts exceeded", e);
+                        }
+
+                        LOG.debug("Login attempt {}/{} failed. Retrying in {} seconds.",
+                                failCount, maxAuthenticationFailures, authenticationFailureTimeoutSeconds);
+                        SECONDS.sleep(authenticationFailureTimeoutSeconds);
+                    }
+                }
             }
 
             thriftApiOperation.executeOperation(cassandraClient);
@@ -354,5 +382,12 @@ public final class Utils
             }
         }
 
+    }
+
+    private static class AuthenticationRetryExceededException extends Exception {
+
+        public AuthenticationRetryExceededException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 }

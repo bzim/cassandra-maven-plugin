@@ -18,6 +18,9 @@
  */
 package org.codehaus.mojo.cassandra;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.slf4j.LoggerFactory.getLogger;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -25,6 +28,7 @@ import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.auth.IAuthenticator;
@@ -55,9 +59,6 @@ import org.apache.thrift.transport.TTransportException;
 import org.codehaus.plexus.util.StringUtils;
 import org.slf4j.Logger;
 import org.yaml.snakeyaml.Yaml;
-
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Utility classes for interacting with Cassandra.
@@ -178,7 +179,7 @@ public final class Utils
             LogOutputStream stdout = new MavenLogOutputStream(log);
             LogOutputStream stderr = new MavenLogOutputStream(log);
 
-            log.debug("Executing command line: " + commandLine);
+            log.info("Executing command line: " + commandLine);
 
             exec.setStreamHandler(new PumpStreamHandler(stdout, stderr));
 
@@ -324,6 +325,7 @@ public final class Utils
                 cassandraClient.set_keyspace(thriftApiOperation.getKeyspace());
             }
             cassandraClient.set_cql_version(thriftApiOperation.getCqlVersion());
+            
             if (thriftApiOperation.getUsername() != null) {
                 // username configured, we assume to execute a login
                 Map<String, String> credentials = new HashMap<String, String>();
@@ -390,4 +392,85 @@ public final class Utils
             super(message, cause);
         }
     }
+
+    public static void splitSqlScript(final String script, final List<String> statements){
+    	final String schemaScript = script.replace("\r\n", "\n");
+		splitSqlScript(schemaScript, ";", "--", "/*", "*/", statements);
+	}
+	
+	public static void splitSqlScript(String script, String separator, String commentPrefix,
+			String blockCommentStartDelimiter, String blockCommentEndDelimiter, List<String> statements) {
+
+		StringBuilder sb = new StringBuilder();
+		boolean inLiteral = false;
+		boolean inEscape = false;
+		char[] content = script.toCharArray();
+		for (int i = 0; i < script.length(); i++) {
+			char c = content[i];
+			if (inEscape) {
+				inEscape = false;
+				sb.append(c);
+				continue;
+			}
+			// MySQL style escapes
+			if (c == '\\') {
+				inEscape = true;
+				sb.append(c);
+				continue;
+			}
+			if (c == '\'') {
+				inLiteral = !inLiteral;
+			}
+			if (!inLiteral) {
+				if (script.startsWith(separator, i)) {
+					// we've reached the end of the current statement
+					if (sb.length() > 0) {
+						statements.add(sb.toString());
+						sb = new StringBuilder();
+					}
+					i += separator.length() - 1;
+					continue;
+				}
+				else if (script.startsWith(commentPrefix, i)) {
+					// skip over any content from the start of the comment to the EOL
+					int indexOfNextNewline = script.indexOf("\n", i);
+					if (indexOfNextNewline > i) {
+						i = indexOfNextNewline;
+						continue;
+					}
+					else {
+						// if there's no EOL, we must be at the end
+						// of the script, so stop here.
+						break;
+					}
+				}
+				else if (script.startsWith(blockCommentStartDelimiter, i)) {
+					// skip over any block comments
+					int indexOfCommentEnd = script.indexOf(blockCommentEndDelimiter, i);
+					if (indexOfCommentEnd > i) {
+						i = indexOfCommentEnd + blockCommentEndDelimiter.length() - 1;
+						continue;
+					}
+					else {
+						throw new RuntimeException(String.format("Missing block comment end delimiter [%s].",
+							blockCommentEndDelimiter));
+					}
+				}
+				else if (c == ' ' || c == '\n' || c == '\t') {
+					// avoid multiple adjacent whitespace characters
+					if (sb.length() > 0 && sb.charAt(sb.length() - 1) != ' ') {
+						c = ' ';
+					}
+					else {
+						continue;
+					}
+				}
+			}
+			sb.append(c);
+		}
+		if (sb.length() > 0) {
+			statements.add(sb.toString());
+		}
+	}
+
 }

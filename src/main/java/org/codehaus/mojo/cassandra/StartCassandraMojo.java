@@ -24,6 +24,8 @@ import org.cassandraunit.DataLoader;
 import org.cassandraunit.dataset.FileDataSet;
 import org.cassandraunit.dataset.ParseException;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+
 import java.io.File;
 import java.io.IOException;
 
@@ -45,7 +47,11 @@ public class StartCassandraMojo
      * @parameter default-value="180"
      */
     protected int startWaitSeconds;
-
+    /** 
+     * @parameter default-value="10"
+     */
+    private int waitBeforeScriptSeconds;
+    
     /**
      * When {@code true}, if this is a clean start then the load script will be applied automatically.
      *
@@ -90,12 +96,13 @@ public class StartCassandraMojo
         }
         long timeStamp = System.currentTimeMillis();
         boolean isClean = !cassandraDir.isDirectory();
-        getLog().debug(
+        getLog().info(
             ( isClean ? "First start of Cassandra instance in " : "Re-using existing Cassandra instance in " )
                 + cassandraDir.getAbsolutePath() );
         try
         {
             Utils.startCassandraServer( cassandraDir, newServiceCommandLine(), createEnvironmentVars(), getLog() );
+        	getLog().info("Using nativeTransportPort: "+nativeTransportPort+" stopPort: "+stopPort+" jmxPort: "+jmxPort+" storagePort: "+storagePort+" rpcPort: "+rpcPort);
 
             if ( startWaitSeconds >= 0 )
             {
@@ -106,6 +113,16 @@ public class StartCassandraMojo
                     Utils.stopCassandraServer( rpcAddress, rpcPort, listenAddress, stopPort, stopKey, getLog() );
                     throw new MojoFailureException( "Cassandra failed to start within " + startWaitSeconds + "s" );
                 }
+                
+                try
+                {
+                	
+                	getLog().info( "Waiting before script execution: "+waitBeforeScriptSeconds+"s" );
+                    Thread.sleep(SECONDS.toMillis(waitBeforeScriptSeconds));
+                } catch (InterruptedException e1) {
+                	Thread.currentThread().interrupt();
+                }
+                
             }
             if ( isClean && loadAfterFirstStart)
             {

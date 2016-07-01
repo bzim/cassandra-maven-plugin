@@ -1,10 +1,14 @@
 package org.codehaus.mojo.cassandra;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,6 +35,12 @@ public abstract class AbstractCqlExecMojo extends AbstractCassandraMojo
      * @since 1.2.1-2
      */
     private String cqlVersion = "2.0.0";
+    /**
+     * Cql file encoding
+     *
+     * @parameter expression="${cql.file.encoding}"
+     */
+    private String cqlFileEncoding = "utf-8";
 
     protected String readFile(File file) throws MojoExecutionException
     {
@@ -39,10 +49,10 @@ public abstract class AbstractCqlExecMojo extends AbstractCassandraMojo
             throw new MojoExecutionException("script " + file + " does not exist.");
         }
 
-        FileReader fr = null;
+        InputStreamReader fr = null;
         try
         {
-            fr = new FileReader(file);
+            fr = new InputStreamReader(new FileInputStream(file), Charset.forName(cqlFileEncoding));
             return IOUtil.toString(fr);
         } catch (FileNotFoundException e)
         {
@@ -56,7 +66,7 @@ public abstract class AbstractCqlExecMojo extends AbstractCassandraMojo
         }
     }
 
-    protected List<CqlResult> executeCql(final String statements) throws MojoExecutionException
+	protected List<CqlResult> executeCql(final String statements) throws MojoExecutionException
     {
         final List<CqlResult> results = new ArrayList<CqlResult>();
         if (StringUtils.isBlank(statements))
@@ -80,12 +90,12 @@ public abstract class AbstractCqlExecMojo extends AbstractCassandraMojo
     private class CqlExecOperation extends ThriftApiOperation
     {
         private final List<CqlResult> results = new ArrayList<CqlResult>();
-        private final String[] statements;
+        private final List<String> statements = new ArrayList<String>();
 
-        private CqlExecOperation(String statements)
+		private CqlExecOperation(String statements)
         {
-            super(rpcAddress, rpcPort, username, password);
-            this.statements = statements.split(";");
+            super(rpcAddress, rpcPort, username, password);            
+            Utils.splitSqlScript(statements, this.statements);
             if (StringUtils.isNotBlank(keyspace))
             {
                 getLog().info("setting keyspace: " + keyspace);
@@ -98,6 +108,7 @@ public abstract class AbstractCqlExecMojo extends AbstractCassandraMojo
         @Override
         void executeOperation(Client client) throws ThriftApiExecutionException
         {
+        	getLog().info("start executing "+statements.size()+" statements");
             for (String statement : statements)
             {
                 if (StringUtils.isNotBlank(statement))
@@ -109,9 +120,11 @@ public abstract class AbstractCqlExecMojo extends AbstractCassandraMojo
 
         private CqlResult executeStatement(Client client, String statement) throws ThriftApiExecutionException
         {
-            ByteBuffer buf = ByteBufferUtil.bytes(statement);
+        	getLog().info("executing: "+statement);
             try
             {
+                ByteBuffer buf = ByteBufferUtil.bytes(statement, Charset.forName(cqlFileEncoding));
+
                 if (cqlVersion.charAt(0) >= '3')
                 {
                     return client.execute_cql3_query(buf, Compression.NONE, ConsistencyLevel.ONE);

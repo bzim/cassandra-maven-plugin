@@ -89,6 +89,8 @@ public class RunCassandraMojo
         {
             DefaultExecuteResultHandler execHandler =
                 Utils.startCassandraServer( cassandraDir, newServiceCommandLine(), createEnvironmentVars(), getLog() );
+        	getLog().info("Using nativeTransportPort: "+nativeTransportPort+" stopPort: "+stopPort+" jmxPort: "+jmxPort+" storagePort: "+storagePort+" rpcPort: "+rpcPort);
+
             try
             {
                 getLog().info( "Waiting for Cassandra to start..." );
